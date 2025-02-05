@@ -2,7 +2,6 @@ import json
 from threading import Thread
 import assemblyai as aai
 import os
-from dotenv import load_dotenv
 import sys
 import anthropic
 
@@ -125,8 +124,8 @@ def main():
             with open("transcript.txt", "w") as file:
                 file.write("")
 
-            load_dotenv()
-            aai.settings.api_key = os.getenv('ASSEMBLY_AI_KEY')
+            ASSEMBLY_AI_KEY = os.environ.get("ASSEMBLY_AI_KEY")
+            aai.settings.api_key = ASSEMBLY_AI_KEY
 
             transcriber = aai.RealtimeTranscriber(
                 sample_rate=SAMPLE_RATE,
