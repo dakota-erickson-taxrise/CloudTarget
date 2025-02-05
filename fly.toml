@@ -1,4 +1,4 @@
-# fly.toml app configuration file generated for cloudtarget on 2025-02-04T17:03:19Z
+# fly.toml app configuration file generated for cloudtarget on 2025-02-05T18:02:14Z
 #
 # See https://fly.io/docs/reference/configuration/ for information about how to use this file.
 #
@@ -9,7 +9,7 @@ primary_region = 'dfw'
 [build]
 
 [http_service]
-  internal_port = 8765
+  internal_port = 8080
   force_https = true
   auto_stop_machines = 'stop'
   auto_start_machines = true
