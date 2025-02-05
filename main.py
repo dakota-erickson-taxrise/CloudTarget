@@ -2,13 +2,11 @@ import json
 from threading import Thread
 import assemblyai as aai
 import os
-import sys
 import anthropic
 import websockets
 import asyncio
 import numpy as np
 import base64
-import struct
 
 class PlaybookItem:
     def __init__(self, name: str, description: str):

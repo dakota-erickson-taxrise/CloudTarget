@@ -1,3 +1,4 @@
 assemblyai
 python-dotenv
 anthropic
+numpy
