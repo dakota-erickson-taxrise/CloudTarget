@@ -8,7 +8,7 @@ WORKDIR /app
 COPY main.py .
 
 # Install required libraries
-RUN pip install websockets assemblyai anthropic assemblyai "assemblyai[extras]"
+RUN pip install websockets assemblyai anthropic 'assemblyai[extras]'
 
 # Expose the port used by the WebSocket server (default 8765)
 EXPOSE 8765
