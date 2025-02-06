@@ -9,6 +9,7 @@ import time
 import os
 import logging
 import base64
+import anthropic
 
 
 logging.basicConfig(
@@ -22,6 +23,38 @@ class PlaybookItem:
         self.completed = False
         self.completed_text = ""
         self.timestamp = None
+
+
+def label_speakers(anthropic_client):
+    """Label the speakers in the transcript after streaming is complete"""
+    try:
+        with open("transcript.txt", "r") as file:
+            transcript_text = file.read()
+        
+        transcript_string = " ".join(transcript_text)
+
+        message = anthropic_client.messages.create(
+            model="claude-3-5-sonnet-20241022",
+            max_tokens=1024,
+            messages=[
+                {
+                    "role": "user",
+                    "content": "Can you perform diarization on the following dialogue and output only \
+                                the text labeled by who is speaking and label them Agent and Customer \
+                                and do not provide any preceeding commentary only output the labled \
+                                dialogue. If it appears to only be one speaker then only label one \
+                                speaker and still provide no commentary. The agent should be the person\
+                                asking questions and the customer should be the person answering questions\n" 
+                                + transcript_string
+                }
+            ]
+        )
+        
+        with open("processed_transcript.txt", "w") as file:
+            file.write(f"{message.content[0].text}")
+        
+    except Exception as e:
+        print(f"Error processing transcript: {e}")
 
 class ConversationAnalyzer:
     def __init__(self, anthropic_api_key: str):
@@ -86,8 +119,9 @@ class ConversationAnalyzer:
 
 class TranscriptionWebSocket:
     def __init__(self, assembly_api_key: str, anthropic_api_key: str):
-        self.api_key = assembly_api_key
-        aai.settings.api_key = self.api_key
+        self.assembly_api_key = assembly_api_key
+        self.anthropic_client = anthropic.Anthropic()
+        aai.settings.api_key = self.assembly_api_key
         self.websocket = None
         self.transcriber = None
         self.audio_queue = Queue()
@@ -103,36 +137,18 @@ class TranscriptionWebSocket:
         logging.info(f"Client connected from {websocket.remote_address}")
 
         def on_transcription_data(transcript: aai.RealtimeTranscript):
-            
-            if isinstance(transcript, aai.RealtimeFinalTranscript):
-                logging.info("Final transcript received")
-                response = {
-                    "type": "transcript",
-                    "text": transcript.text if transcript.text else "",
-                    "is_final": True,
-                    "words": [word.text for word in transcript.words] if hasattr(transcript, 'words') else []
-                }
-                logging.info(f"Response is {response}")
-            else:
-                # logging.info(f"Partial transcript received: {transcript.text}")
-                response = {
-                    "type": "transcript",
-                    "text": transcript.text if transcript.text else "",
-                    "is_final": False,
-                    "words": [word.text for word in transcript.words] if hasattr(transcript, 'words') else []
-                }
+            if not transcript.text:
+                return
 
-            self.loop.call_soon_threadsafe(
-                lambda: asyncio.create_task(self.send_message(response))
-            )
+            with open("transcript.txt", "a") as file:
+                if isinstance(transcript, aai.RealtimeFinalTranscript):
+                    file.write(transcript.text + "\n")
+                    print("Writing to file...\n", end="\r")
+                else:
+                    pass
 
         def on_transcription_error(error: aai.RealtimeError):
             logging.error(f"Transcription error: {error}")
-            self.loop.call_soon_threadsafe(
-                lambda: asyncio.create_task(self.send_message(
-                    {"type": "error", "error": str(error)}
-                ))
-            )
 
         async def process_audio_queue():
             # Wait for transcriber to be ready
@@ -183,7 +199,7 @@ class TranscriptionWebSocket:
                 self.transcriber = aai.RealtimeTranscriber(
                     on_data=on_transcription_data,
                     on_error=on_transcription_error,
-                    sample_rate=8000,
+                    sample_rate=16_000,
                     encoding=aai.AudioEncoding.pcm_mulaw
                 )
 
@@ -229,6 +245,8 @@ class TranscriptionWebSocket:
 
         except websockets.exceptions.ConnectionClosed:
             logging.info("Client disconnected")
+            label_speakers(anthropic_client=self.anthropic_client)
+
         finally:
             self.is_running = False
             if self.transcriber:
@@ -275,7 +293,7 @@ async def start_server(
 
 if __name__ == "__main__":
     ASSEMBLY_API_KEY = os.environ.get("ASSEMBLY_AI_KEY")
-    ANTHROPIC_API_KEY = "your_anthropic_api_key"
+    ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_AI_KEY")
     
     logging.info("Running websocket...")
 
