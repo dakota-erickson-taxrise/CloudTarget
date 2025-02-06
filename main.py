@@ -52,7 +52,7 @@ class TranscriptionProcessor:
                 file.write(f"{message.content[0].text}")
             
         except Exception as e:
-            print(f"Error processing transcript: {e}")
+            logging.info(f"Error processing transcript: {e}")
 
     def analyze_labeled_transcript(self):
         try:
@@ -94,7 +94,7 @@ class TranscriptionProcessor:
             with open("analyzed_transcript.txt", "w") as file:
                 file.write(f"{message.content[0].text}")
         except Exception as e:
-            print(f"Error analyzing transcript: {e}")
+            logging.info(f"Error analyzing transcript: {e}")
 
 class WebSocketAudioStream:
     def __init__(self, sample_rate=16000):
@@ -110,10 +110,10 @@ class WebSocketAudioStream:
                 data = await websocket.recv()
                 await self.queue.put(data)
         except websockets.exceptions.ConnectionClosed:
-            print("WebSocket connection closed")
+            logging.info("WebSocket connection closed")
             self.is_closed = True
         except Exception as e:
-            print(f"Error receiving audio: {e}")
+            logging.info(f"Error receiving audio: {e}")
         finally:
             self.active_connection = None
 
@@ -148,16 +148,16 @@ class TranscriptionManager:
                 file.write(transcript.text + "\n")
             self.processor.current_transcript += transcript.text + "\n"
             self.processor.process_new_content()
-            print("Processing new transcript content...\n", end="\r")
+            logging.info("Processing new transcript content...\n", end="\r")
 
     def on_error(self, error: aai.RealtimeError):
-        print("An error occurred:", error)
+        logging.info("An error occurred:", error)
 
     def on_open(self, session_opened: aai.RealtimeSessionOpened):
-        print("Session ID:", session_opened.session_id)
+        logging.info("Session ID:", session_opened.session_id)
 
     def on_close(self):
-        print("Connection closed")
+        logging.info("Connection closed")
         if self.audio_stream.active_connection:
             asyncio.run(self.audio_stream.active_connection.close())
 
@@ -192,9 +192,9 @@ def main():
         manager = TranscriptionManager()
         asyncio.run(manager.run())
     except KeyboardInterrupt:
-        print("\nShutting down...")
+        logging.info("\nShutting down...")
     except Exception as e:
-        print(f"An error occurred: {e}")
+        logging.info(f"An error occurred: {e}")
     finally:
         sys.exit(0)
 
