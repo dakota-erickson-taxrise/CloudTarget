@@ -11,10 +11,7 @@ import logging
 import base64
 import anthropic
 
-
-logging.basicConfig(
-    format="%(asctime)s %(message)s", level=logging.INFO
-)
+logging.basicConfig(format="%(asctime)s %(message)s", level=logging.INFO)
 
 class PlaybookItem:
     def __init__(self, name: str, description: str):
@@ -24,38 +21,40 @@ class PlaybookItem:
         self.completed_text = ""
         self.timestamp = None
 
+class TranscriptManager:
+    def __init__(self, anthropic_client):
+        self.anthropic_client = anthropic_client
+        self.current_transcript = []
+        self.last_processed_index = -1
 
-def label_speakers(anthropic_client):
-    """Label the speakers in the transcript after streaming is complete"""
-    try:
-        logging.info("Diarizing the transcript")
-        with open("transcript.txt", "r") as file:
-            transcript_text = file.read()
+    async def process_transcript(self, text: str):
+        self.current_transcript.append(text)
         
-        transcript_string = " ".join(transcript_text)
-
-        message = anthropic_client.messages.create(
-            model="claude-3-5-sonnet-20241022",
-            max_tokens=1024,
-            messages=[
+        if len(self.current_transcript) - 1 > self.last_processed_index:
+            new_chunks = self.current_transcript[self.last_processed_index + 1:]
+            
+            messages = [
                 {
                     "role": "user",
-                    "content": "Can you perform diarization on the following dialogue and output only \
-                                the text labeled by who is speaking and label them Agent and Customer \
-                                and do not provide any preceeding commentary only output the labled \
-                                dialogue. If it appears to only be one speaker then only label one \
-                                speaker and still provide no commentary. The agent should be the person\
-                                asking questions and the customer should be the person answering questions\n" 
-                                + transcript_string
+                    "content": "Label this dialogue segment with speakers (Agent/Customer). Output only labeled dialogue:\n" + 
+                              " ".join(new_chunks)
                 }
             ]
-        )
-        
-        with open("processed_transcript.txt", "w") as file:
-            file.write(f"{message.content[0].text}")
-        
-    except Exception as e:
-        print(f"Error processing transcript: {e}")
+            
+            try:
+                response = self.anthropic_client.messages.create(
+                    model="claude-3-5-sonnet-20241022",
+                    max_tokens=1024,
+                    messages=messages
+                )
+                
+                with open("processed_transcript.txt", "a") as file:
+                    file.write(f"{response.content[0].text}\n")
+                
+                self.last_processed_index = len(self.current_transcript) - 1
+                
+            except Exception as e:
+                logging.error(f"Error processing transcript chunk: {e}")
 
 class ConversationAnalyzer:
     def __init__(self, anthropic_api_key: str):
@@ -70,10 +69,8 @@ class ConversationAnalyzer:
         ]
     
     def analyze_transcript(self, text: str) -> Dict:
-        # Append new text to conversation history
         self.conversation_history.append(text)
         
-        # Create prompt for Claude to analyze the conversation
         prompt = f"""Given the following conversation transcript and playbook items, identify which items have been completed.
         For each completed item, provide the relevant quote that demonstrates completion.
         
@@ -122,6 +119,7 @@ class TranscriptionWebSocket:
     def __init__(self, assembly_api_key: str, anthropic_api_key: str):
         self.assembly_api_key = assembly_api_key
         self.anthropic_client = anthropic.Anthropic()
+        self.transcript_manager = TranscriptManager(self.anthropic_client)
         aai.settings.api_key = self.assembly_api_key
         self.websocket = None
         self.transcriber = None
@@ -141,24 +139,20 @@ class TranscriptionWebSocket:
             logging.info(f"Transcript received: {transcript}")
             
             try:
-                current_dir = os.getcwd()
-                logging.info(f"Current working directory: {current_dir}")
-                
-                with open("transcript.txt", "a") as file:
-                    if isinstance(transcript, aai.RealtimeFinalTranscript):
+                if isinstance(transcript, aai.RealtimeFinalTranscript):
+                    with open("transcript.txt", "a") as file:
                         file.write(transcript.text + "\n")
-                        logging.info(f"Successfully wrote to transcript.txt: {transcript.text}")
-                    else:
-                        logging.info("Skipping non-final transcript")
+                    asyncio.create_task(self.transcript_manager.process_transcript(transcript.text))
+                    logging.info(f"Successfully processed transcript: {transcript.text}")
+                else:
+                    logging.info("Skipping non-final transcript")
             except Exception as e:
-                logging.error(f"Error writing transcript: {e}")
-
+                logging.error(f"Error processing transcript: {e}")
 
         def on_transcription_error(error: aai.RealtimeError):
             logging.error(f"Transcription error: {error}")
 
         async def process_audio_queue():
-            # Wait for transcriber to be ready
             await self.transcriber_ready.wait()
             
             while self.is_running:
@@ -211,7 +205,7 @@ class TranscriptionWebSocket:
                 logging.info("Connecting transcriber...")
                 await self.loop.run_in_executor(None, self.transcriber.connect)
                 logging.info("Transcriber connected successfully")
-                self.transcriber_ready.set()  # Signal that transcriber is ready
+                self.transcriber_ready.set()
                 
                 while self.is_running:
                     await asyncio.sleep(0.1)
@@ -228,7 +222,6 @@ class TranscriptionWebSocket:
         try:
             self.is_running = True
             
-            # Start transcriber initialization
             transcriber_task = asyncio.create_task(init_transcriber())
             audio_process_task = asyncio.create_task(process_audio_queue())
 
@@ -250,7 +243,6 @@ class TranscriptionWebSocket:
 
         except websockets.exceptions.ConnectionClosed:
             logging.info("Client disconnected")
-            label_speakers(anthropic_client=self.anthropic_client)
 
         finally:
             self.is_running = False
@@ -277,8 +269,6 @@ async def start_server(
     assembly_api_key: str = None,
     anthropic_api_key: str = None
 ):
-    
-    # Exit early if we don't get API keys
     if assembly_api_key is None:
         logging.error("Missing AssemblyAI API key")
         return None
@@ -294,7 +284,7 @@ async def start_server(
         port
     ):
         logging.info(f"WebSocket server started on ws://{host}:{port}")
-        await asyncio.Future()  # run forever
+        await asyncio.Future()
 
 if __name__ == "__main__":
     ASSEMBLY_API_KEY = os.environ.get("ASSEMBLY_AI_KEY")
