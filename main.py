@@ -138,8 +138,7 @@ class TranscriptionWebSocket:
         logging.info(f"Client connected from {websocket.remote_address}")
 
         def on_transcription_data(transcript: aai.RealtimeTranscript):
-            logging.info(f"Transcript received: {type(transcript)}")
-            logging.info(f"Transcript text: {transcript.text}")
+            logging.info(f"Transcript received: {json.dumps(transcript)}")
             
             try:
                 current_dir = os.getcwd()
