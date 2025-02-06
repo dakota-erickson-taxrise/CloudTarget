@@ -8,6 +8,7 @@ import anthropic
 import websockets
 import asyncio
 from typing import Optional
+import logging
 
 class PlaybookItem:
     def __init__(self, name: str, description: str):
@@ -131,7 +132,7 @@ class WebSocketAudioStream:
         self.is_closed = True
 
 class TranscriptionManager:
-    def __init__(self, host="localhost", port=8765):
+    def __init__(self, host="0.0.0.0", port=8765):
         self.host = host
         self.port = port
         self.processor = TranscriptionProcessor()
@@ -180,7 +181,7 @@ class TranscriptionManager:
         transcription_thread.start()
         
         async with websockets.serve(self.handle_websocket, self.host, self.port):
-            print(f"WebSocket server running on ws://{self.host}:{self.port}")
+            logging.info(f"WebSocket server running on ws://{self.host}:{self.port}")
             await asyncio.Future()
 
 def main():
