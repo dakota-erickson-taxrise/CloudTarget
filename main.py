@@ -48,14 +48,13 @@ class TranscriptManager:
                     messages=messages
                 )
                 
-                with open("processed_transcript.txt", "a") as file:
+                with open('transcripts/processed_transcript.txt', 'a') as file:
                     file.write(f"{response.content[0].text}\n")
                 
                 self.last_processed_index = len(self.current_transcript) - 1
                 
             except Exception as e:
                 logging.error(f"Error processing transcript chunk: {e}")
-
 class ConversationAnalyzer:
     def __init__(self, anthropic_api_key: str):
         self.client = Anthropic(api_key=anthropic_api_key)
