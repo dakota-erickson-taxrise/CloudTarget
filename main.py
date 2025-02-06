@@ -138,16 +138,22 @@ class TranscriptionWebSocket:
         logging.info(f"Client connected from {websocket.remote_address}")
 
         def on_transcription_data(transcript: aai.RealtimeTranscript):
-            logging.info("Inside on_data function...")
-            if not transcript.text:
-                return
+            logging.info(f"Transcript received: {type(transcript)}")
+            logging.info(f"Transcript text: {transcript.text}")
+            
+            try:
+                current_dir = os.getcwd()
+                logging.info(f"Current working directory: {current_dir}")
+                
+                with open("transcript.txt", "a") as file:
+                    if isinstance(transcript, aai.RealtimeFinalTranscript):
+                        file.write(transcript.text + "\n")
+                        logging.info(f"Successfully wrote to transcript.txt: {transcript.text}")
+                    else:
+                        logging.info("Skipping non-final transcript")
+            except Exception as e:
+                logging.error(f"Error writing transcript: {e}")
 
-            with open("transcript.txt", "a") as file:
-                if isinstance(transcript, aai.RealtimeFinalTranscript):
-                    file.write(transcript.text + "\n")
-                    print("Writing to file...\n", end="\r")
-                else:
-                    pass
 
         def on_transcription_error(error: aai.RealtimeError):
             logging.error(f"Transcription error: {error}")
