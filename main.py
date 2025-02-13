@@ -222,17 +222,28 @@ class TranscriptionManager:
     async def handle_websocket(self, websocket, path):
         await self.audio_stream.receive_audio(websocket)
 
+    def _run_transcription(self):
+        # Create a new event loop for this thread
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            self.transcriber.connect()
+            self.transcriber.stream(self.audio_stream)
+        except Exception as e:
+            logging.error(f"Error in transcription thread: {e}")
+        finally:
+            loop.close()
+
     def start_transcription(self):
         self.transcriber = aai.RealtimeTranscriber(
-            sample_rate=16000,
+            sample_rate=16_000,
             on_data=self.on_data,
             on_error=self.on_error,
             on_open=self.on_open,
             on_close=self.on_close,
         )
         
-        self.transcriber.connect()
-        return self.transcriber.stream(self.audio_stream)
+        return self._run_transcription()
 
     async def run(self):
         transcription_thread = Thread(target=self.start_transcription, daemon=True)
