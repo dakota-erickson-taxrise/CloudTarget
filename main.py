@@ -236,11 +236,12 @@ class TranscriptionManager:
 
     def start_transcription(self):
         self.transcriber = aai.RealtimeTranscriber(
-            sample_rate=16_000,
+            sample_rate=8_000,
             on_data=self.on_data,
             on_error=self.on_error,
             on_open=self.on_open,
             on_close=self.on_close,
+            encoding=aai.AudioEncoding.pcm_mulaw
         )
         
         return self._run_transcription()
