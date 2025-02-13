@@ -194,20 +194,25 @@ class TranscriptionManager:
         
     def on_data(self, transcript: aai.RealtimeTranscript):
         if not transcript.text:
+            logging.info("Received empty transcript text")
             return
 
         if isinstance(transcript, aai.RealtimeFinalTranscript):
             logging.info(f"New transcription: {transcript.text}")
-            with open("transcript.txt", "a") as file:
-                file.write(transcript.text + "\n")
-            self.processor.current_transcript += transcript.text + "\n"
-            self.processor.process_new_content()
+            try:
+                # Use absolute path in /tmp directory
+                transcript_path = "/tmp/transcript.txt"
+                with open(transcript_path, "a") as file:
+                    file.write(transcript.text + "\n")
+                logging.info(f"Successfully wrote to {transcript_path}")
+            except Exception as e:
+                logging.error(f"Error writing to transcript file: {e}")
 
     def on_error(self, error: aai.RealtimeError):
-        logging.info("An error occurred:", error)
+        logging.info(f"An error occurred: {error}")
 
     def on_open(self, session_opened: aai.RealtimeSessionOpened):
-        logging.info("Session ID:", session_opened.session_id)
+        logging.info(f"Session ID: {session_opened.session_id}")
 
     def on_close(self):
         logging.info("Connection closed")
