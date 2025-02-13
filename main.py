@@ -108,6 +108,7 @@ class WebSocketAudioStream:
         try:
             while not self.is_closed:
                 data = await websocket.recv()
+                logging.info(f"received data is {data}")
                 await self.queue.put(data)
         except websockets.exceptions.ConnectionClosed:
             logging.info("WebSocket connection closed")
