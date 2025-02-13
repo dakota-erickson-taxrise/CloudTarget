@@ -9,6 +9,7 @@ import websockets
 import asyncio
 from typing import Optional
 import logging
+import base64
 
 logging.basicConfig(
     level=logging.INFO,
@@ -114,6 +115,24 @@ class WebSocketAudioStream:
         self.is_closed = False
         self.active_connection: Optional[websockets.WebSocketServerProtocol] = None
         self.config_received = False
+        self._iterator = None
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        if self.is_closed:
+            raise StopIteration
+        
+        try:
+            # Use get_nowait() to avoid blocking indefinitely
+            return asyncio.get_event_loop().run_until_complete(self.queue.get())
+        except asyncio.QueueEmpty:
+            # If queue is empty, yield None to let the transcriber know we're still active
+            return None
+        except Exception as e:
+            logging.error(f"Error getting next audio chunk: {e}")
+            raise StopIteration
 
     async def receive_audio(self, websocket):
         self.active_connection = websocket
@@ -161,6 +180,9 @@ class WebSocketAudioStream:
         finally:
             self.active_connection = None
             self.config_received = False
+
+    def close(self):
+        self.is_closed = True
 
 class TranscriptionManager:
     def __init__(self, host="0.0.0.0", port=8765):
