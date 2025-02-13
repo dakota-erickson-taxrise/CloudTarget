@@ -112,18 +112,26 @@ class WebSocketAudioStream:
         self.is_closed = False
         self.active_connection: Optional[websockets.WebSocketServerProtocol] = None
 
+    # In the WebSocketAudioStream class, modify the receive_audio method:
     async def receive_audio(self, websocket):
         self.active_connection = websocket
         try:
+            connection_id = id(websocket)  # Get unique identifier for this connection
+            logging.info(f"New audio stream connection established (ID: {connection_id})")
+            received_chunks = 0
+            
             while not self.is_closed:
                 data = await websocket.recv()
-                logging.info(f"received data is {data}")
+                received_chunks += 1
+                # Log every 100 chunks to avoid spam
+                if received_chunks % 100 == 0:
+                    logging.info(f"Connection {connection_id}: Received {received_chunks} audio chunks")
                 await self.queue.put(data)
+                
         except websockets.exceptions.ConnectionClosed:
-            logging.info("WebSocket connection closed")
-            self.is_closed = True
+            logging.info(f"WebSocket connection {connection_id} closed after receiving {received_chunks} chunks")
         except Exception as e:
-            logging.info(f"Error receiving audio: {e}")
+            logging.error(f"Error in audio stream: {e}")
         finally:
             self.active_connection = None
 
@@ -154,11 +162,11 @@ class TranscriptionManager:
             return
 
         if isinstance(transcript, aai.RealtimeFinalTranscript):
+            logging.info(f"New transcription: {transcript.text}")
             with open("transcript.txt", "a") as file:
                 file.write(transcript.text + "\n")
             self.processor.current_transcript += transcript.text + "\n"
             self.processor.process_new_content()
-            logging.info("Processing new transcript content...\n", end="\r")
 
     def on_error(self, error: aai.RealtimeError):
         logging.info("An error occurred:", error)
