@@ -10,6 +10,15 @@ import asyncio
 from typing import Optional
 import logging
 
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler(),  # Outputs to console/stdout
+        logging.FileHandler('app.log')  # Also saves to a file
+    ]
+)
+
 class PlaybookItem:
     def __init__(self, name: str, description: str):
         self.name = name
