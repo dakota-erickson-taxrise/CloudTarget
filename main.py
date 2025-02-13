@@ -105,49 +105,62 @@ class TranscriptionProcessor:
         except Exception as e:
             logging.info(f"Error analyzing transcript: {e}")
 
+# In main.py, modify the WebSocketAudioStream class:
+
 class WebSocketAudioStream:
     def __init__(self, sample_rate=16000):
         self.sample_rate = sample_rate
         self.queue = asyncio.Queue()
         self.is_closed = False
         self.active_connection: Optional[websockets.WebSocketServerProtocol] = None
+        self.config_received = False
 
-    # In the WebSocketAudioStream class, modify the receive_audio method:
     async def receive_audio(self, websocket):
         self.active_connection = websocket
         try:
-            connection_id = id(websocket)  # Get unique identifier for this connection
+            connection_id = id(websocket)
             logging.info(f"New audio stream connection established (ID: {connection_id})")
             received_chunks = 0
             
             while not self.is_closed:
-                data = await websocket.recv()
-                received_chunks += 1
-                # Log every 100 chunks to avoid spam
-                if received_chunks % 100 == 0:
-                    logging.info(f"Connection {connection_id}: Received {received_chunks} audio chunks")
-                await self.queue.put(data)
+                message = await websocket.recv()
                 
+                try:
+                    # Try to parse as JSON
+                    data = json.loads(message)
+                    
+                    if not self.config_received:
+                        # Handle initial config message
+                        if 'sample_rate' in data:
+                            logging.info(f"Received config: {data}")
+                            self.config_received = True
+                            await websocket.send(json.dumps({"status": "config_accepted"}))
+                            continue
+                    
+                    # Handle audio data in JSON format
+                    if 'audio_data' in data:
+                        audio_data = base64.b64decode(data['audio_data'])
+                        await self.queue.put(audio_data)
+                        received_chunks += 1
+                        if received_chunks % 100 == 0:
+                            logging.info(f"Connection {connection_id}: Received {received_chunks} audio chunks")
+                        await websocket.send(json.dumps({"status": "chunk_received"}))
+                
+                except json.JSONDecodeError:
+                    # If not JSON, assume raw audio data
+                    await self.queue.put(message)
+                    received_chunks += 1
+                    if received_chunks % 100 == 0:
+                        logging.info(f"Connection {connection_id}: Received {received_chunks} audio chunks")
+                    await websocket.send(json.dumps({"status": "chunk_received"}))
+                    
         except websockets.exceptions.ConnectionClosed:
             logging.info(f"WebSocket connection {connection_id} closed after receiving {received_chunks} chunks")
         except Exception as e:
             logging.error(f"Error in audio stream: {e}")
         finally:
             self.active_connection = None
-
-    def __iter__(self):
-        return self
-
-    def __next__(self):
-        if self.is_closed:
-            raise StopIteration
-        try:
-            return asyncio.run(self.queue.get())
-        except Exception:
-            raise StopIteration
-
-    def close(self):
-        self.is_closed = True
+            self.config_received = False
 
 class TranscriptionManager:
     def __init__(self, host="0.0.0.0", port=8765):
