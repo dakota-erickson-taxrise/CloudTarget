@@ -109,7 +109,7 @@ class TranscriptionProcessor:
 # In main.py, modify the WebSocketAudioStream class:
 
 class WebSocketAudioStream:
-    def __init__(self, sample_rate=16000):
+    def __init__(self, sample_rate=8_000):
         self.sample_rate = sample_rate
         self.queue = asyncio.Queue()
         self.is_closed = False
@@ -125,10 +125,8 @@ class WebSocketAudioStream:
             raise StopIteration
         
         try:
-            # Use get_nowait() to avoid blocking indefinitely
             return asyncio.get_event_loop().run_until_complete(self.queue.get())
         except asyncio.QueueEmpty:
-            # If queue is empty, yield None to let the transcriber know we're still active
             return None
         except Exception as e:
             logging.error(f"Error getting next audio chunk: {e}")
@@ -193,20 +191,24 @@ class TranscriptionManager:
         self.transcriber = None
         
     def on_data(self, transcript: aai.RealtimeTranscript):
+        "This function is called when a new transcript has been received"
+        logging.info(f"New transcript received: {transcript}")
+        
         if not transcript.text:
             logging.info("Received empty transcript text")
             return
 
         if isinstance(transcript, aai.RealtimeFinalTranscript):
-            logging.info(f"New transcription: {transcript.text}")
+            logging.info("Final transcript received...")
             try:
-                # Use absolute path in /tmp directory
                 transcript_path = "/tmp/transcript.txt"
                 with open(transcript_path, "a") as file:
-                    file.write(transcript.text + "\n")
+                    file.write(transcript.text + "\r\n")
                 logging.info(f"Successfully wrote to {transcript_path}")
             except Exception as e:
                 logging.error(f"Error writing to transcript file: {e}")
+        else:
+            print(transcript.text, end="\r")
 
     def on_error(self, error: aai.RealtimeError):
         logging.info(f"An error occurred: {error}")
@@ -223,7 +225,6 @@ class TranscriptionManager:
         await self.audio_stream.receive_audio(websocket)
 
     def _run_transcription(self):
-        # Create a new event loop for this thread
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         try:
@@ -236,12 +237,12 @@ class TranscriptionManager:
 
     def start_transcription(self):
         self.transcriber = aai.RealtimeTranscriber(
-            sample_rate=8_000,
+            sample_rate=44_100,
             on_data=self.on_data,
             on_error=self.on_error,
             on_open=self.on_open,
             on_close=self.on_close,
-            encoding=aai.AudioEncoding.pcm_mulaw
+            # encoding=aai.AudioEncoding.pcm_mulaw  This might be neccessary given how I'm streaming the data
         )
         
         return self._run_transcription()
