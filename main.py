@@ -4,8 +4,17 @@ import json
 import os
 import io
 import wave
+import logging
+import sys
+
 
 import assemblyai as aai
+
+logging.basicConfig(
+    level=logging.DEBUG,
+    format="[%(asctime)s] %(levelname)s [%(name)s.%(funcName)s:%(lineno)d] %(message)s",
+    datefmt="%d/%b/%Y %H:%M:%S",
+    stream=sys.stdout)
 
 # AssemblyAI Configuration
 aai.settings.api_key = os.environ.get("ASSEMBLY_AI_KEY")
@@ -31,7 +40,7 @@ def create_wav_bytes(audio_data, sample_rate, channels):
 # AssemblyAI Event Handlers
 def on_open(session_opened: aai.RealtimeSessionOpened):
     """Called when the AssemblyAI session is open."""
-    print("Session ID:", session_opened.session_id)
+    logging.info("Session ID:", session_opened.session_id)
 
 
 def on_data(transcript: aai.RealtimeTranscript):
@@ -48,12 +57,12 @@ def on_data(transcript: aai.RealtimeTranscript):
 
 def on_error(error: aai.RealtimeError):
     """Called when an error occurs during transcription."""
-    print("An error occurred:", error)
+    logging.info("An error occurred:", error)
 
 
 def on_close():
     """Called when the AssemblyAI session is closed."""
-    print("Closing Session")
+    logging.info("Closing Session")
 
 
 async def process_audio(websocket, path):
@@ -66,7 +75,7 @@ async def process_audio(websocket, path):
         on_close=on_close,
     )
 
-    print(f"Client connected from {websocket.remote_address}")
+    logging.info(f"Client connected from {websocket.remote_address}")
     await transcriber.connect()  # Connect to AssemblyAI
 
     try:
@@ -88,18 +97,18 @@ async def process_audio(websocket, path):
                 await transcriber.stream(audio_stream)
 
             except Exception as e:
-                print(f"Error processing audio: {e}")
+                logging.info(f"Error processing audio: {e}")
                 break
 
     finally:
         await transcriber.close()  # Close the AssemblyAI session
-        print(f"Client disconnected from {websocket.remote_address}")
+        logging.info(f"Client disconnected from {websocket.remote_address}")
 
 
 async def main():
     """Starts the WebSocket server."""
     async with websockets.serve(process_audio, "0.0.0.0", 8765):
-        print("WebSocket server started on ws://0.0.0.0:8765")
+        logging.info("WebSocket server started on ws://0.0.0.0:8765")
         await asyncio.Future()  # Run forever
 
 
