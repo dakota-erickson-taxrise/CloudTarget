@@ -56,8 +56,8 @@ def on_close():
     print("Closing Session")
 
 
-async def transcribe_from_websocket():
-    """Main function to transcribe audio from the WebSocket."""
+async def process_audio(websocket, path):
+    """Handles a single WebSocket connection and transcribes audio."""
     transcriber = aai.RealtimeTranscriber(
         on_data=on_data,
         on_error=on_error,
@@ -66,10 +66,10 @@ async def transcribe_from_websocket():
         on_close=on_close,
     )
 
-    async with websockets.connect(WEBSOCKET_URI) as websocket:
-        print(f"Connected to {WEBSOCKET_URI}")
-        await transcriber.connect()  # Connect to AssemblyAI
+    print(f"Client connected from {websocket.remote_address}")
+    await transcriber.connect()  # Connect to AssemblyAI
 
+    try:
         async for message in websocket:
             try:
                 # Assuming the client sends raw WAV bytes first, then JSON metadata
@@ -87,18 +87,20 @@ async def transcribe_from_websocket():
                 # Stream the audio data to AssemblyAI
                 await transcriber.stream(audio_stream)
 
-            except websockets.exceptions.ConnectionClosed as e:
-                print(f"Connection closed: {e}")
-                break
             except Exception as e:
                 print(f"Error processing audio: {e}")
+                break
 
-    await transcriber.close()  # Close the AssemblyAI session
+    finally:
+        await transcriber.close()  # Close the AssemblyAI session
+        print(f"Client disconnected from {websocket.remote_address}")
 
 
 async def main():
-    """Entry point for the script."""
-    await transcribe_from_websocket()
+    """Starts the WebSocket server."""
+    async with websockets.serve(process_audio, "0.0.0.0", 8765):
+        print("WebSocket server started on ws://0.0.0.0:8765")
+        await asyncio.Future()  # Run forever
 
 
 if __name__ == "__main__":
