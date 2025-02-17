@@ -109,7 +109,7 @@ class TranscriptionProcessor:
 # In main.py, modify the WebSocketAudioStream class:
 
 class WebSocketAudioStream:
-    def __init__(self, sample_rate=8_000):
+    def __init__(self, sample_rate=44_100):
         self.sample_rate = sample_rate
         self.queue = asyncio.Queue()
         self.is_closed = False
@@ -242,6 +242,7 @@ class TranscriptionManager:
             on_error=self.on_error,
             on_open=self.on_open,
             on_close=self.on_close,
+            encoding=aai.AudioEncoding.pcm_s16le
             # encoding=aai.AudioEncoding.pcm_mulaw  This might be neccessary given how I'm streaming the data
         )
         
