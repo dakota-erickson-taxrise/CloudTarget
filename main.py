@@ -1,3 +1,4 @@
+# Server
 import asyncio
 import websockets
 import json
@@ -20,7 +21,7 @@ logging.basicConfig(
 aai.settings.api_key = os.environ.get("ASSEMBLY_AI_KEY")
 
 # WebSocket Configuration
-WEBSOCKET_URI = "ws://0.0.0.0:8765"  # Replace with your actual WebSocket server URI
+WEBSOCKET_URI = "wss://0.0.0.0:8765"
 
 # Transcript File
 TRANSCRIPT_FILE = "transcript.txt"
