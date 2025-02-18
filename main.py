@@ -21,7 +21,7 @@ logging.basicConfig(
 aai.settings.api_key = os.environ.get("ASSEMBLY_AI_KEY")
 
 # WebSocket Configuration
-WEBSOCKET_URI = "wss://0.0.0.0:8765"
+WEBSOCKET_URI = "ws://0.0.0.0:8765"
 
 # Transcript File
 TRANSCRIPT_FILE = "transcript.txt"
