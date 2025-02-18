@@ -1,15 +1,11 @@
-# Server
 import asyncio
 import websockets
 import json
+import base64
+import assemblyai as aai
 import os
-import io
-import wave
 import logging
 import sys
-
-
-import assemblyai as aai
 
 logging.basicConfig(
     level=logging.DEBUG,
@@ -17,101 +13,85 @@ logging.basicConfig(
     datefmt="%d/%b/%Y %H:%M:%S",
     stream=sys.stdout)
 
-# AssemblyAI Configuration
+# Configure AssemblyAI API
 aai.settings.api_key = os.environ.get("ASSEMBLY_AI_KEY")
 
-# WebSocket Configuration
-WEBSOCKET_URI = "ws://0.0.0.0:8765"
-
-# Transcript File
-TRANSCRIPT_FILE = "transcript.txt"
-
-
-def create_wav_bytes(audio_data, sample_rate, channels):
-    """Creates WAV PCM16 bytes from audio data."""
-    with io.BytesIO() as bio:
-        with wave.open(bio, 'wb') as wf:
-            wf.setnchannels(channels)
-            wf.setsampwidth(2)  # 16-bit PCM
-            wf.setframerate(sample_rate)
-            wf.writeframes(audio_data)
-        return bio.getvalue()
-
-
-# AssemblyAI Event Handlers
+# AssemblyAI event handlers
 def on_open(session_opened: aai.RealtimeSessionOpened):
-    """Called when the AssemblyAI session is open."""
-    logging.info("Session ID:", session_opened.session_id)
-
+    logging.info("AssemblyAI Session ID:", session_opened.session_id)
 
 def on_data(transcript: aai.RealtimeTranscript):
-    """Called when a transcript is received from AssemblyAI."""
     if not transcript.text:
         return
-
-    with open(TRANSCRIPT_FILE, "a") as f:  # Open file in append mode
-        if isinstance(transcript, aai.RealtimeFinalTranscript):
-            f.write(transcript.text + "\n")  # Write final transcript with newline
-        else:
-            f.write(transcript.text + "\r")  # Write partial transcript with carriage return
-
+    if isinstance(transcript, aai.RealtimeFinalTranscript):
+        logging.info(f"Final: {transcript.text}")
+        # Here you could send final transcripts back to client if needed
+    else:
+        logging.info(f"Partial: {transcript.text}", end="\r")
 
 def on_error(error: aai.RealtimeError):
-    """Called when an error occurs during transcription."""
-    logging.info("An error occurred:", error)
-
+    logging.info("AssemblyAI error occurred:", error)
 
 def on_close():
-    """Called when the AssemblyAI session is closed."""
-    logging.info("Closing Session")
+    logging.info("AssemblyAI Session Closed")
 
+# Create transcriber with 44.1kHz sample rate
+transcriber = aai.RealtimeTranscriber(
+    on_data=on_data,
+    on_error=on_error,
+    on_open=on_open,
+    on_close=on_close,
+    sample_rate=44_100,
+)
 
-async def process_audio(websocket, path):
-    """Handles a single WebSocket connection and transcribes audio."""
-    transcriber = aai.RealtimeTranscriber(
-        on_data=on_data,
-        on_error=on_error,
-        sample_rate=16_000,  # Match the sample rate from the client
-        on_open=on_open,
-        on_close=on_close,
-    )
+# Dictionary to track active connections
+connections = {}
 
-    logging.info(f"Client connected from {websocket.remote_address}")
-    await transcriber.connect()  # Connect to AssemblyAI
-
+async def handle_client(websocket):
+    client_id = id(websocket)
+    connections[client_id] = websocket
+    logging.info(f"Client {client_id} connected")
+    
     try:
+        # Connect to AssemblyAI when a client connects
+        transcriber.connect()
+        
+        # Process incoming audio data
         async for message in websocket:
             try:
-                # Assuming the client sends raw WAV bytes first, then JSON metadata
-                wav_bytes = message  # Receive raw WAV bytes
-
-                # Receive and parse metadata (make sure the client sends this!)
-                metadata_json = await websocket.recv()
-                metadata = json.loads(metadata_json)
-                sample_rate = metadata.get("sample_rate")
-                channels = metadata.get("channels")
-
-                # Create an in-memory audio stream from the WAV bytes
-                audio_stream = io.BytesIO(wav_bytes)
-
-                # Stream the audio data to AssemblyAI
-                await transcriber.stream(audio_stream)
-
+                # Assuming client sends JSON with base64-encoded audio
+                data = json.loads(message)
+                if 'audio_data' in data:
+                    # Decode base64 audio data
+                    audio_bytes = base64.b64decode(data['audio_data'])
+                    
+                    # Stream to AssemblyAI
+                    transcriber.stream_bytes(audio_bytes)
+                    
+            except json.JSONDecodeError:
+                logging.info(f"Received invalid JSON from client {client_id}")
             except Exception as e:
-                logging.info(f"Error processing audio: {e}")
-                break
-
+                logging.info(f"Error processing message from client {client_id}: {e}")
+    
+    except websockets.exceptions.ConnectionClosed:
+        logging.info(f"Connection with client {client_id} closed")
+    
     finally:
-        await transcriber.close()  # Close the AssemblyAI session
-        logging.info(f"Client disconnected from {websocket.remote_address}")
+        # Clean up AssemblyAI connection and remove client
+        transcriber.close()
+        if client_id in connections:
+            del connections[client_id]
+        logging.info(f"Client {client_id} disconnected")
 
-
+# Start WebSocket server
 async def main():
-    """Starts the WebSocket server."""
-    async with websockets.serve(process_audio, "0.0.0.0", 8765):
-        logging.info("WebSocket server started on ws://0.0.0.0:8765")
-        await asyncio.Future()  # Run forever
-
+    server = await websockets.serve(
+        handle_client,
+        "0.0.0.0",
+        8765
+    )
+    logging.info(f"WebSocket server started at ws://0.0.0.0:8765")
+    await server.wait_closed()
 
 if __name__ == "__main__":
     asyncio.run(main())
