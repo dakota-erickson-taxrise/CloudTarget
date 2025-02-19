@@ -66,7 +66,7 @@ async def handle_client(websocket):
                     audio_bytes = base64.b64decode(data['audio_data'])
                     
                     # Stream to AssemblyAI
-                    transcriber.stream_bytes(audio_bytes)
+                    transcriber.stream(audio_bytes)
                     
             except json.JSONDecodeError:
                 logging.info(f"Received invalid JSON from client {client_id}")
