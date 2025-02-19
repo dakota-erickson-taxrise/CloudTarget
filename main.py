@@ -8,7 +8,7 @@ import logging
 import sys
 
 logging.basicConfig(
-    level=logging.INFO,
+    level=logging.DEBUG,
     format="[%(asctime)s] %(levelname)s [%(name)s.%(funcName)s:%(lineno)d] %(message)s",
     datefmt="%d/%b/%Y %H:%M:%S",
     stream=sys.stdout)
@@ -21,6 +21,7 @@ def on_open(session_opened: aai.RealtimeSessionOpened):
     logging.info("AssemblyAI Session ID:", session_opened.session_id)
 
 def on_data(transcript: aai.RealtimeTranscript):
+    logging.info(f"TRANSCRIPT IS {transcript}")
     if not transcript.text:
         return
     if isinstance(transcript, aai.RealtimeFinalTranscript):
