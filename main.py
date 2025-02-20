@@ -1,3 +1,4 @@
+# server
 import asyncio
 import websockets
 import json
@@ -42,7 +43,7 @@ transcriber = aai.RealtimeTranscriber(
     on_error=on_error,
     on_open=on_open,
     on_close=on_close,
-    sample_rate=44_100,
+    sample_rate=16_000,
 )
 
 # Dictionary to track active connections
