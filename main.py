@@ -29,7 +29,7 @@ def on_data(transcript: aai.RealtimeTranscript):
         logging.info(f"Final: {transcript.text}")
         # Here you could send final transcripts back to client if needed
     else:
-        logging.info(f"Partial: {transcript.text}", end="\r")
+        logging.info(f"Partial: {transcript.text}")
 
 def on_error(error: aai.RealtimeError):
     logging.info("AssemblyAI error occurred:", error)
