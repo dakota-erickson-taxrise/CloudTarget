@@ -22,14 +22,15 @@ def on_open(session_opened: aai.RealtimeSessionOpened):
     logging.info("AssemblyAI Session ID:", session_opened.session_id)
 
 def on_data(transcript: aai.RealtimeTranscript):
-    logging.info(f"TRANSCRIPT IS {transcript}")
     if not transcript.text:
         return
+        
     if isinstance(transcript, aai.RealtimeFinalTranscript):
-        logging.info(f"Final: {transcript.text}")
-        # Here you could send final transcripts back to client if needed
+        logging.info(f"Received final transcript and writing to file...")
+        with open('raw_transcript.txt', 'a') as f:
+            f.write(transcript.text + '\n')
     else:
-        logging.info(f"Partial: {transcript.text}")
+        logging.info(f"Received Partial transcript: {transcript.text}")
 
 def on_error(error: aai.RealtimeError):
     logging.info("AssemblyAI error occurred:", error)
